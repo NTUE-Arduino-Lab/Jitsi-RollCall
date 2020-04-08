@@ -1,6 +1,10 @@
-import React, {useState, useEffect, Component} from 'react';
-
-// import ProgressComponent from '@material-ui/core/CircularProgress';
+import React, {Component} from 'react';
+import {ParticipantsTable} from "./participantsTable";
+import {ExportCSV} from "../utils/exportCSV";
+import Swal from 'sweetalert2'
+import Button from 'react-bootstrap/Button';
+import Spinner from "react-bootstrap/Spinner";
+import Form from 'react-bootstrap/Form';
 
 class JitsiMeetComponent extends Component {
     constructor(props) {
@@ -14,10 +18,11 @@ class JitsiMeetComponent extends Component {
         this.onStartButtonClick = this.onStartButtonClick.bind(this);
 
         this.state = {
+            initial: true,
             loading: true,
             api: null,
             numberOfParticipants: 0,
-            arrayOfUsers: [],
+            participants: [],
             roomName: null,
         }
 
@@ -44,30 +49,29 @@ class JitsiMeetComponent extends Component {
 
         console.log(id, displayName);
 
-        const arrayOfUsers = this.state.arrayOfUsers;
-        arrayOfUsers.push({id, displayName});
+        const participants = this.state.participants;
+        participants.push({id, displayName});
 
-        // const arrayOfUsers = this.state.arrayOfUsers.concat({id, displayName});
         this.setState({
-            arrayOfUsers
+            participants
         })
     }
 
     onParticipantLeft({id}) {
-        const arrayOfUsers = this.state.arrayOfUsers;
-        const targetIndex = arrayOfUsers.findIndex(user => user.id === id );
-        arrayOfUsers.splice(targetIndex, 1);
+        const participants = this.state.participants;
+        const targetIndex = participants.findIndex(user => user.id === id );
+        participants.splice(targetIndex, 1);
         this.setState({
-            arrayOfUsers
+            participants
         })
     }
 
     onParticipantDisplayNameChange({id, displayname}) {
-        const arrayOfUsers = this.state.arrayOfUsers;
-        const targetIndex = arrayOfUsers.findIndex(user => user.id === id );
-        arrayOfUsers.splice(targetIndex, 1, {id, displayName: displayname});
+        const participants = this.state.participants;
+        const targetIndex = participants.findIndex(user => user.id === id );
+        participants.splice(targetIndex, 1, {id, displayName: displayname});
         this.setState({
-            arrayOfUsers
+            participants
         })
     }
 
@@ -79,13 +83,19 @@ class JitsiMeetComponent extends Component {
 
     async onStartButtonClick() {
         if(!this.state.roomName) {
-            alert('Enter the room name or conference exist');
+            Swal.fire({
+                icon: 'error',
+                title: 'Oops...',
+                text: '必須要輸入房間代號喔！',
+                // footer: '<a href>Why do I have this issue?</a>'
+            });
             return;
         }
+
         if(this.state.api) {
             this.setState({
                 api: null,
-                arrayOfUsers: [],
+                participants: [],
             });
             this.state.api.dispose();
         }
@@ -93,12 +103,6 @@ class JitsiMeetComponent extends Component {
     }
 
     async startAndSetConferenceApi() {
-
-        if(!this.state.roomName) {
-            alert('Enter the room name or conference exist');
-            return;
-        }
-
         try {
             const domain = 'meet.jit.si';
             const options = {
@@ -127,10 +131,14 @@ class JitsiMeetComponent extends Component {
             await this.setState({
                 api,
                 loading: false,
+                initial: false,
             });
 
-
-            // return api;
+            Swal.fire(
+                'Good job!',
+                `您所加入的房間名稱：${this.state.roomName}`,
+                'success'
+            )
 
         } catch (error) {
             console.error('Failed to load Jitsi API', error);
@@ -148,13 +156,18 @@ class JitsiMeetComponent extends Component {
             <div style={{
                 overflow: 'scroll'
             }}>
-                <input value={this.state.roomName} onChange={this.onRoomNameChange} type="text" placeholder="input the room name..." />
-                <button onClick={this.onStartButtonClick}>Start / Join</button>
+                <div style={{marginTop: '1em', display: 'flex', alignItems: 'center'}}>
+                    <Form.Group style={{ flex: 1, marginTop: '1em', marginRight: '0.5em' }}>
+                    <Form.Control value={this.state.roomName} onChange={this.onRoomNameChange} type="text" placeholder="input the room name..." inline={true}/>
+                    </Form.Group>
+                    <Button onClick={this.onStartButtonClick} variant="secondary" size="md">Start / Join</Button>
+                </div>
 
                 <div
                     style={containerStyle}
                 >
-                    {this.state.loading && <p>loading...</p>}
+                    {(!this.state.initial && this.state.loading)
+                    && <Spinner animation="grow" variant="dark" size="lg"/>}
                     <div
                         id="jitsi-container"
                         style={{
@@ -165,17 +178,18 @@ class JitsiMeetComponent extends Component {
                         }}
                     />
                 </div>
-                <p>{this.state.numberOfParticipants}</p>
-                <button onClick={this.getNumberOfParticipant}>Get Participant numbers</button>
+                <p className="text-primary">在線人數：{this.state.numberOfParticipants}</p>
 
-                {
-                    this.state.arrayOfUsers.length > 0 && this.state.arrayOfUsers.map(({id, displayName}) => (
-                        <>
-                            <p>{id}</p>
-                            <p>{displayName}</p>
-                        </>
-                    ))
-                }
+                <div style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    marginBottom: '1em'
+                }}>
+                    <Button onClick={this.getNumberOfParticipant} variant="primary">刷新在線人數</Button>
+                    <ExportCSV csvData={this.state.participants} fileName={`${this.state.roomName}_${getDateFormatted()}`} />
+                </div>
+
+                <ParticipantsTable participants={this.state.participants}/>
 
             </div>
         );
@@ -185,88 +199,25 @@ class JitsiMeetComponent extends Component {
 const containerStyle = {
     width: '800px',
     height: '400px',
+    display: 'flex',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: '1em'
 };
 
-function JitsiMeetComponents() {
+const getDateFormatted = () => {
+    const date = new Date();
+    const year = date.getFullYear();
+    const month = date.getMonth() + 1 < 10
+        ? `0${date.getMonth() + 1}`
+        : date.getMonth() + 1;
+    const day = date.getDate() < 10
+        ? `0${date.getDate()}`
+        : date.getDate() + 1; // date of month
+    // const hour = date.getHours();
+    // const minute = date.getMinutes();
 
-    const [loading, setLoading] = useState(true);
-
-    const [numberOfParticipant, setNumberOfParticipant] = useState(0);
-    const [api, setApi] = useState({});
-
-    const containerStyle = {
-        width: '800px',
-        height: '400px',
-    };
-
-    const jitsiContainerStyle = {
-        display: (loading ? 'none' : 'block'),
-        width: '100%',
-        height: '100%',
-    };
-
-    async function startConference() {
-        try {
-            const domain = 'meet.jit.si';
-            const options = {
-                roomName: 'roomName',
-                height: 400,
-                parentNode: document.getElementById('jitsi-container'),
-                interfaceConfigOverwrite: {
-                    filmStripOnly: false,
-                    SHOW_JITSI_WATERMARK: false,
-                },
-                configOverwrite: {
-                    disableSimulcast: false,
-                },
-            };
-
-            const api = new window.JitsiMeetExternalAPI(domain, options);
-
-            setApi(api);
-
-            api.addEventListener('videoConferenceJoined', () => {
-                console.log('Local User Joined');
-                setLoading(false);
-                api.executeCommand('displayName', 'MyName');
-            });
-            const devices = await api.getCurrentDevices();
-
-            getNumberOfParticipant();
-            // debugger;
-
-
-        } catch (error) {
-            console.error('Failed to load Jitsi API', error);
-        }
-    }
-
-    useEffect(() => {
-        // verify the JitsiMeetExternalAPI constructor is added to the global..
-        if (window.JitsiMeetExternalAPI) startConference();
-        else alert('Jitsi Meet API script not loaded');
-    }, []);
-
-    const getNumberOfParticipant = () => {
-        const numberOfParticipants = api.getNumberOfParticipants();
-        setNumberOfParticipant(numberOfParticipants);
-    };
-
-    return (
-        <>
-            <div
-                style={containerStyle}
-            >
-                {loading && <p>loading...</p>}
-                <div
-                    id="jitsi-container"
-                    style={jitsiContainerStyle}
-                />
-            </div>
-            <p>{numberOfParticipant}</p>
-            <button onClick={getNumberOfParticipant}>Get Participant numbers</button>
-        </>
-    );
-}
+    return `${year}${month}${day}`;
+};
 
 export default JitsiMeetComponent;

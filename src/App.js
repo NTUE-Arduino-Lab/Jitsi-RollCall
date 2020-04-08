@@ -41,7 +41,9 @@ import JitsiMeetComponent from "./components/jitsiMeetComponent";
 // };
 
 const App = () => (
-    <JitsiMeetComponent />
+    <>
+        <JitsiMeetComponent />
+    </>
 );
 
 export default App
