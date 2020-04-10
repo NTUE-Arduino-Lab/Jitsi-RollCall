@@ -122,7 +122,7 @@ class JitsiMeetComponent extends Component {
 
             api.addEventListener('videoConferenceJoined', () => {
                 console.log('Local User Joined');
-                // api.executeCommand('displayName', 'MyName');
+                api.executeCommand('displayName', 'joker');
             });
             api.addEventListener('participantJoined', this.onParticipantJoined);
             api.addEventListener('displayNameChange', this.onParticipantDisplayNameChange);
