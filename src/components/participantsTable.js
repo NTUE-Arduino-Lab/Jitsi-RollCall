@@ -10,9 +10,6 @@ export const ParticipantsTable = ({participants}) => {
                 <td> {index + 1} </td>
                 <td>{participant.id}</td>
                 <td>{participant.displayName}</td>
-                {/*<td>{participant.email}</td>*/}
-                {/*<td>{participant.address}</td>*/}
-                {/*<td>{participant.zipcode}</td>*/}
             </tr>
         )
     };
@@ -23,10 +20,7 @@ export const ParticipantsTable = ({participants}) => {
     <tr>
         <th>#</th>
         <th>編號</th>
-        <th>使用者名稱</th>
-        {/*<th>Email</th>*/}
-        {/*<th>Address</th>*/}
-        {/*<th>Zipcode</th>*/}
+        <th>學生名稱</th>
     </tr>
     </thead>;
 

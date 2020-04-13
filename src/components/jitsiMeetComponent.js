@@ -12,6 +12,7 @@ class JitsiMeetComponent extends Component {
 
         this.getNumberOfParticipant = this.getNumberOfParticipant.bind(this);
         this.onRoomNameChange = this.onRoomNameChange.bind(this);
+        this.onLocalUserJoined = this.onLocalUserJoined.bind(this);
         this.onParticipantLeft = this.onParticipantLeft.bind(this);
         this.onParticipantJoined = this.onParticipantJoined.bind(this);
         this.onParticipantDisplayNameChange = this.onParticipantDisplayNameChange.bind(this);
@@ -49,40 +50,59 @@ class JitsiMeetComponent extends Component {
 
         console.log(id, displayName);
 
+        let numberOfParticipants = this.state.numberOfParticipants;
+
         const participants = this.state.participants;
         participants.push({id, displayName});
 
         this.setState({
-            participants
+            participants,
+            numberOfParticipants: numberOfParticipants + 1
         })
     }
 
     onParticipantLeft({id}) {
         const participants = this.state.participants;
-        const targetIndex = participants.findIndex(user => user.id === id );
+        const targetIndex = participants.findIndex(user => user.id === id);
         participants.splice(targetIndex, 1);
+        let numberOfParticipants = this.state.numberOfParticipants;
+
         this.setState({
-            participants
+            participants,
+            numberOfParticipants: numberOfParticipants - 1
         })
     }
 
     onParticipantDisplayNameChange({id, displayname}) {
         const participants = this.state.participants;
-        const targetIndex = participants.findIndex(user => user.id === id );
+        const targetIndex = participants.findIndex(user => user.id === id);
         participants.splice(targetIndex, 1, {id, displayName: displayname});
         this.setState({
             participants
         })
     }
 
-    getNumberOfParticipant() {
-        if(!this.state.api)return;
-        const numberOfParticipants = this.state.api.getNumberOfParticipants();
-        this.setState({numberOfParticipants});
+    onLocalUserJoined() {
+        console.log('Local user joined')
+        let numberOfParticipants = this.state.numberOfParticipants;
+        this.setState({
+            numberOfParticipants: numberOfParticipants + 1
+        })
+    }
+
+    getNumberOfParticipant(api) {
+        if (!this.state.api && !api) return;
+        let numberOfParticipants;
+        if (this.state.api) {
+            numberOfParticipants = this.state.api.getNumberOfParticipants();
+            this.setState({numberOfParticipants});
+        } else {
+            return api.getNumberOfParticipants();
+        }
     };
 
     async onStartButtonClick() {
-        if(!this.state.roomName) {
+        if (!this.state.roomName) {
             Swal.fire({
                 icon: 'error',
                 title: 'Oops...',
@@ -92,10 +112,11 @@ class JitsiMeetComponent extends Component {
             return;
         }
 
-        if(this.state.api) {
+        if (this.state.api) {
             this.setState({
                 api: null,
                 participants: [],
+                numberOfParticipants: 0,
             });
             this.state.api.dispose();
         }
@@ -107,7 +128,7 @@ class JitsiMeetComponent extends Component {
             const domain = 'meet.jit.si';
             const options = {
                 roomName: this.state.roomName,
-                height: 400,
+                height: 450,
                 parentNode: document.getElementById('jitsi-container'),
                 interfaceConfigOverwrite: {
                     filmStripOnly: false,
@@ -118,27 +139,25 @@ class JitsiMeetComponent extends Component {
                 },
             };
 
-            const api = new window.JitsiMeetExternalAPI(domain, options);
+            const api = await new window.JitsiMeetExternalAPI(domain, options);
 
-            api.addEventListener('videoConferenceJoined', () => {
-                console.log('Local User Joined');
-                // api.executeCommand('displayName', 'MyName');
-            });
+            api.addEventListener('videoConferenceJoined', this.onLocalUserJoined);
             api.addEventListener('participantJoined', this.onParticipantJoined);
             api.addEventListener('displayNameChange', this.onParticipantDisplayNameChange);
             api.addEventListener('participantLeft', this.onParticipantLeft);
 
-            await this.setState({
-                api,
-                loading: false,
-                initial: false,
-            });
 
             Swal.fire(
                 'Good job!',
                 `您所加入的房間名稱：${this.state.roomName}`,
                 'success'
-            )
+            );
+
+            this.setState({
+                api,
+                loading: false,
+                initial: false,
+            });
 
         } catch (error) {
             console.error('Failed to load Jitsi API', error);
@@ -154,11 +173,13 @@ class JitsiMeetComponent extends Component {
     render() {
         return (
             <div style={{
-                overflow: 'scroll'
+                width: '100%',
+                height: '100%',
             }}>
                 <div style={{marginTop: '1em', display: 'flex', alignItems: 'center'}}>
-                    <Form.Group style={{ flex: 1, marginTop: '1em', marginRight: '0.5em' }}>
-                    <Form.Control value={this.state.roomName} onChange={this.onRoomNameChange} type="text" placeholder="input the room name..." inline={true}/>
+                    <Form.Group style={{flex: 1, marginTop: '1em', marginRight: '0.5em'}}>
+                        <Form.Control value={this.state.roomName} onChange={this.onRoomNameChange} type="text"
+                                      placeholder="input the room name..." inline={true}/>
                     </Form.Group>
                     <Button onClick={this.onStartButtonClick} variant="secondary" size="md">Start / Join</Button>
                 </div>
@@ -171,26 +192,43 @@ class JitsiMeetComponent extends Component {
                     <div
                         id="jitsi-container"
                         style={{
-                            display: this.state.loading ? 'none': 'block',
+                            display: this.state.loading ? 'none' : 'block',
                             width: '100%',
                             height: '100%',
                             overflow: 'scroll'
                         }}
                     />
                 </div>
-                <p className="text-primary">在線人數：{this.state.numberOfParticipants}</p>
 
                 <div style={{
                     display: 'flex',
                     justifyContent: 'space-between',
-                    marginBottom: '1em'
+                    alignItems: 'center',
+                    marginBottom: '1em',
                 }}>
+                    <p className="text-primary" style={{margin: 0}}>在線人數（包含我）：{this.state.numberOfParticipants}</p>
                     <Button onClick={this.getNumberOfParticipant} variant="primary">刷新在線人數</Button>
-                    <ExportCSV csvData={this.state.participants} fileName={`${this.state.roomName}_${getDateFormatted()}`} />
                 </div>
 
-                <ParticipantsTable participants={this.state.participants}/>
+                <div style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    marginBottom: '1em',
+                }}>
+                    <h2>學生名單</h2>
+                    <ExportCSV csvData={this.state.participants}
+                               fileName={`${this.state.roomName}_${getDateFormatted()}`}/>
+                </div>
 
+                <div style={{
+                    maxHeight: '22vh',
+                    marginBottom: '1em',
+                    overflow: 'scroll'
+                }}>
+
+                    <ParticipantsTable participants={this.state.participants}/>
+
+                </div>
             </div>
         );
     }
@@ -198,7 +236,7 @@ class JitsiMeetComponent extends Component {
 
 const containerStyle = {
     width: '800px',
-    height: '400px',
+    height: '51vh',
     display: 'flex',
     justifyContent: 'center',
     alignItems: 'center',
@@ -214,10 +252,10 @@ const getDateFormatted = () => {
     const day = date.getDate() < 10
         ? `0${date.getDate()}`
         : date.getDate() + 1; // date of month
-    // const hour = date.getHours();
-    // const minute = date.getMinutes();
+    const hour = date.getHours();
+    const minute = date.getMinutes();
 
-    return `${year}${month}${day}`;
+    return `${year}${month}${day}:${hour}時:${minute}分`;
 };
 
 export default JitsiMeetComponent;
